@@ -1,24 +1,23 @@
 'use client';
 
 import {
+  Activity,
   Check,
-  Clipboard,
   Copy,
   Download,
   FileUp,
+  Inbox,
   Laptop,
   Link,
   MessageSquareText,
   Monitor,
-  Pencil,
   QrCode,
+  Radar,
   RefreshCcw,
   Send,
-  Share2,
   Smartphone,
   Tablet,
-  Wifi,
-  WifiOff,
+  User,
   X
 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -86,6 +85,7 @@ export default function AppShell() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const connectionsRef = useRef(new Map<string, PeerEntry>());
   const incomingTransfersRef = useRef(new Map<string, IncomingTransfer>());
@@ -715,7 +715,7 @@ export default function AppShell() {
       <section className="topbar">
         <div className="brand">
           <div className="brand-mark">
-            <Share2 aria-hidden="true" size={20} />
+            <Radar aria-hidden="true" size={18} />
           </div>
           <div>
             <p className="eyebrow">{t('app.title')}</p>
@@ -725,100 +725,119 @@ export default function AppShell() {
         <div className="status-strip">
           <ConnectionBadge state={connectionState} />
           <label className="name-field">
-            <Pencil aria-hidden="true" size={16} />
+            <User aria-hidden="true" size={15} />
             <input value={deviceName} onChange={(event) => renameDevice(event.target.value)} aria-label={t('device.name')} />
           </label>
           <button className="icon-button" type="button" onClick={() => connect(deviceName)} aria-label={t('device.reconnect')}>
-            <RefreshCcw size={18} />
+            <RefreshCcw size={16} />
           </button>
           <LanguageSwitcher />
         </div>
       </section>
 
-      <section className="grid">
-        <aside className="share-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{t('room.joinRoom')}</p>
-              <h2>{room}</h2>
+      <section className="stage">
+        <div className="col col-left">
+          <aside className="card share-card">
+            <div className="card-head">
+              <div>
+                <p className="eyebrow">{t('room.joinRoom')}</p>
+                <h2>{t('room.roomName')}</h2>
+              </div>
+              <QrCode aria-hidden="true" size={20} />
             </div>
-            <QrCode aria-hidden="true" size={22} />
-          </div>
-          <div className="qr-frame">
-            {qrCode ? <img src={qrCode} alt={t('share.qrCode')} /> : <div className="qr-placeholder">{t('share.qrPlaceholder')}</div>}
-          </div>
-          <div className="copy-row">
-            <Link aria-hidden="true" size={16} />
-            <span>{shareUrl || t('share.loadingLink')}</span>
-            <button type="button" onClick={copyShareUrl} aria-label={t('share.copyLink')}>
-              {copied ? <Check size={16} /> : <Copy size={16} />}
-            </button>
-          </div>
-          <div className="self-card">
-            <span>{t('device.yourDevice')}</span>
-            <strong>{selfPeer?.deviceName || deviceName}</strong>
-            <small>{selfId || t('device.waitingForId')}</small>
-          </div>
-        </aside>
+            <div className="room-meta">
+              <span className="label">{t('room.roomName')}</span>
+              <span className="value">{room}</span>
+            </div>
+            <div className="card-body" style={{ paddingTop: 0 }}>
+              <div className="qr-frame">
+                {qrCode ? <img src={qrCode} alt={t('share.qrCode')} /> : <div className="qr-placeholder">{t('share.qrPlaceholder')}</div>}
+              </div>
+              <div className="copy-row">
+                <Link aria-hidden="true" size={14} />
+                <span>{shareUrl || t('share.loadingLink')}</span>
+                <button type="button" onClick={copyShareUrl} aria-label={t('share.copyLink')}>
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+              <div className="self-card">
+                <span className="label">{t('device.yourDevice')}</span>
+                <strong>{selfPeer?.deviceName || deviceName}</strong>
+                <small>{selfId ? `id · ${selfId.slice(0, 12)}` : t('device.waitingForId')}</small>
+              </div>
+            </div>
+          </aside>
+        </div>
 
-        <section className="devices-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{t('peers.onlineDevices')}</p>
-              <h2>{visiblePeers.length ? t('peers.available', { count: visiblePeers.length }) : t('peers.waitingForPeers')}</h2>
+        <div className="col col-center">
+          <section className="card radar-card">
+            <div className="card-head">
+              <div>
+                <p className="eyebrow">{t('peers.onlineDevices')}</p>
+                <h2>{visiblePeers.length ? t('peers.available', { count: visiblePeers.length }) : t('peers.waitingForPeers')}</h2>
+              </div>
+              <Radar aria-hidden="true" size={20} />
             </div>
-            <Wifi aria-hidden="true" size={22} />
-          </div>
-          <div className="device-list">
-            {visiblePeers.length ? (
-              visiblePeers.map((peer) => (
-                <DeviceCard
-                  key={peer.peerId}
-                  peer={peer}
-                  ready={readyPeerSet.has(peer.peerId)}
-                  onText={() => setActiveDialog({ kind: 'text', peer })}
-                  onFile={() => setActiveDialog({ kind: 'file', peer })}
-                />
-              ))
-            ) : (
-              <EmptyPeers />
-            )}
-          </div>
-        </section>
+            <RadarStage
+              selfPeer={selfPeer ?? null}
+              selfName={deviceName}
+              peers={visiblePeers}
+              readyPeerSet={readyPeerSet}
+              selectedPeerId={selectedPeerId}
+              onSelectPeer={setSelectedPeerId}
+              onSendText={(peer) => {
+                setSelectedPeerId(null);
+                setActiveDialog({ kind: 'text', peer });
+              }}
+              onSendFile={(peer) => {
+                setSelectedPeerId(null);
+                setActiveDialog({ kind: 'file', peer });
+              }}
+            />
+          </section>
+        </div>
 
-        <section className="inbox-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{t('inbox.incoming')}</p>
-              <h2>{receivedItems.length ? t('inbox.items', { count: receivedItems.length }) : t('inbox.noArrivals')}</h2>
+        <div className="col col-right">
+          <section className="card">
+            <div className="card-head">
+              <div>
+                <p className="eyebrow">{t('inbox.incoming')}</p>
+                <h2>{receivedItems.length ? t('inbox.items', { count: receivedItems.length }) : t('inbox.noArrivals')}</h2>
+              </div>
+              <Inbox aria-hidden="true" size={20} />
             </div>
-            <Download aria-hidden="true" size={22} />
-          </div>
-          <div className="inbox-list">
-            {receivedItems.length ? (
-              receivedItems.map((item) => <InboxItem key={item.id} item={item} />)
-            ) : (
-              <div className="quiet-box">{t('inbox.emptyHint')}</div>
-            )}
-          </div>
-        </section>
+            <div className="card-body list">
+              {receivedItems.length ? (
+                receivedItems.map((item) => <InboxItem key={item.id} item={item} />)
+              ) : (
+                <div className="empty-list">
+                  <Inbox aria-hidden="true" size={20} />
+                  <span>{t('inbox.emptyHint')}</span>
+                </div>
+              )}
+            </div>
+          </section>
 
-        <section className="log-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{t('log.transferLog')}</p>
-              <h2>{t('log.recentActivity')}</h2>
+          <section className="card">
+            <div className="card-head">
+              <div>
+                <p className="eyebrow">{t('log.transferLog')}</p>
+                <h2>{t('log.recentActivity')}</h2>
+              </div>
+              <Activity aria-hidden="true" size={20} />
             </div>
-            <Clipboard aria-hidden="true" size={22} />
-          </div>
-          <div className="log-list">
-            {logs.length ? (
-              logs.map((log) => <LogItem key={log.id} log={log} />)
-            ) : (
-              <div className="quiet-box">{t('log.emptyHint')}</div>
-            )}
-          </div>
-        </section>
+            <div className="card-body list">
+              {logs.length ? (
+                logs.map((log) => <LogItem key={log.id} log={log} />)
+              ) : (
+                <div className="empty-list">
+                  <Activity aria-hidden="true" size={20} />
+                  <span>{t('log.emptyHint')}</span>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       </section>
 
       {activeDialog?.kind === 'text' ? (
@@ -865,34 +884,148 @@ export default function AppShell() {
 
 function ConnectionBadge({ state }: { state: ConnectionState }) {
   const { t } = useTranslation();
-  const connected = state === 'connected';
   return (
     <div className={`connection ${state}`}>
-      {connected ? <Wifi size={16} /> : <WifiOff size={16} />}
+      <span className="dot" aria-hidden="true" />
       <span>{t(`connection.${state}`)}</span>
     </div>
   );
 }
 
-function DeviceCard({ peer, ready, onText, onFile }: { peer: Peer; ready: boolean; onText: () => void; onFile: () => void }) {
+type RadarStageProps = {
+  selfPeer: Peer | null;
+  selfName: string;
+  peers: Peer[];
+  readyPeerSet: Set<string>;
+  selectedPeerId: string | null;
+  onSelectPeer: (peerId: string | null) => void;
+  onSendText: (peer: Peer) => void;
+  onSendFile: (peer: Peer) => void;
+};
+
+function RadarStage({
+  selfPeer,
+  selfName,
+  peers,
+  readyPeerSet,
+  selectedPeerId,
+  onSelectPeer,
+  onSendText,
+  onSendFile
+}: RadarStageProps) {
   const { t } = useTranslation();
+  const positions = useMemo(() => layoutPeers(peers), [peers]);
+
   return (
-    <article className="device-card">
-      <div className="device-icon">{deviceIcon(peer.deviceType)}</div>
-      <div className="device-info">
-        <h3>{peer.deviceName}</h3>
-        <p>{ready ? t('peers.peerLinkReady') : t('peers.openingPeerLink')}</p>
+    <div
+      className="radar-stage"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onSelectPeer(null);
+        }
+      }}
+    >
+      <div className={`radar ${peers.length ? '' : 'idle'}`}>
+        <span className="ring" />
+        <span className="crosshair" />
+        <span className="sweep" />
+
+        <div className="self-node" aria-label={t('device.yourDevice')}>
+          {deviceIcon(selfPeer?.deviceType ?? 'desktop', 24)}
+        </div>
+        <div className="self-label">
+          <strong>{selfPeer?.deviceName || selfName || t('device.device')}</strong>
+          <small>{t('device.yourDevice')}</small>
+        </div>
+
+        {peers.map((peer) => {
+          const pos = positions.get(peer.peerId);
+          if (!pos) return null;
+          const ready = readyPeerSet.has(peer.peerId);
+          const selected = selectedPeerId === peer.peerId;
+          return (
+            <div
+              key={peer.peerId}
+              style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%` }}
+              className="peer-wrap"
+            >
+              <button
+                type="button"
+                className={`peer-node ${ready ? 'ready' : 'pending'}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!ready) return;
+                  onSelectPeer(selected ? null : peer.peerId);
+                }}
+                aria-label={`${peer.deviceName} — ${ready ? t('peers.peerLinkReady') : t('peers.openingPeerLink')}`}
+                disabled={!ready}
+              >
+                {deviceIcon(peer.deviceType, 20)}
+              </button>
+              <div className="peer-label">
+                <strong>{peer.deviceName}</strong>
+                <small className={ready ? 'ready' : undefined}>
+                  {ready ? t('peers.peerLinkReady') : t('peers.openingPeerLink')}
+                </small>
+              </div>
+              {selected ? (
+                <div className="peer-popover" role="menu">
+                  <button type="button" onClick={() => onSendText(peer)}>
+                    <MessageSquareText size={14} />
+                    {t('peers.actionText')}
+                  </button>
+                  <button type="button" onClick={() => onSendFile(peer)}>
+                    <FileUp size={14} />
+                    {t('peers.actionFile')}
+                  </button>
+                  <button type="button" className="close" onClick={() => onSelectPeer(null)} aria-label={t('dialog.close')}>
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </div>
-      <div className="device-actions">
-        <button type="button" onClick={onText} disabled={!ready} aria-label={t('peers.sendText', { name: peer.deviceName })}>
-          <MessageSquareText size={18} />
-        </button>
-        <button type="button" onClick={onFile} disabled={!ready} aria-label={t('peers.sendFile', { name: peer.deviceName })}>
-          <FileUp size={18} />
-        </button>
-      </div>
-    </article>
+
+      {peers.length === 0 ? (
+        <div className="radar-empty">
+          <strong>{t('peers.waitingForPeers')}</strong>
+          <p>{t('peers.scanHint')}</p>
+        </div>
+      ) : null}
+    </div>
   );
+}
+
+function layoutPeers(peers: Peer[]): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>();
+  const total = peers.length;
+  if (total === 0) return out;
+
+  peers.forEach((peer, index) => {
+    const hash = hashString(peer.peerId);
+    const baseAngle = (index / total) * Math.PI * 2 - Math.PI / 2;
+    const angleJitter = (((hash >>> 0) % 1000) / 1000 - 0.5) * 0.45;
+    const angle = baseAngle + angleJitter;
+    // Radius as a fraction of the radar half-size; alternate between rings
+    const ring = index % 3 === 0 ? 0.32 : index % 3 === 1 ? 0.42 : 0.5;
+    const radiusJitter = (((hash >>> 8) % 1000) / 1000) * 0.06;
+    const r = ring + radiusJitter;
+    out.set(peer.peerId, {
+      x: 0.5 + Math.cos(angle) * r,
+      y: 0.5 + Math.sin(angle) * r
+    });
+  });
+  return out;
+}
+
+function hashString(value: string): number {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+  }
+  return hash;
 }
 
 function InboxItem({ item }: { item: ReceivedItem }) {
@@ -901,11 +1034,11 @@ function InboxItem({ item }: { item: ReceivedItem }) {
     return (
       <article className="inbox-item">
         <div>
-          <span>{t('inbox.textFrom', { name: item.from.deviceName })}</span>
+          <span className="tag">{t('inbox.textFrom', { name: item.from.deviceName })}</span>
           <p>{item.data}</p>
         </div>
         <button type="button" onClick={() => void copyText(item.data)} aria-label={t('inbox.copyText')}>
-          <Copy size={16} />
+          <Copy size={14} />
         </button>
       </article>
     );
@@ -914,11 +1047,11 @@ function InboxItem({ item }: { item: ReceivedItem }) {
   return (
     <article className="inbox-item">
       <div>
-        <span>{t('inbox.fileFrom', { name: item.from.deviceName })}</span>
-        <p>{item.fileName} - {formatBytes(item.size)}</p>
+        <span className="tag">{t('inbox.fileFrom', { name: item.from.deviceName })}</span>
+        <p>{item.fileName} · {formatBytes(item.size)}</p>
       </div>
       <button type="button" onClick={() => void downloadFile(item.blob, item.url, item.fileName)} aria-label={t('inbox.downloadFile', { name: item.fileName })}>
-        <Download size={16} />
+        <Download size={14} />
       </button>
     </article>
   );
@@ -960,7 +1093,7 @@ function LogItem({ log }: { log: TransferLog }) {
   const { t } = useTranslation();
   return (
     <article className={`log-item ${log.status}`}>
-      <span>{t(`log.direction${log.direction.charAt(0).toUpperCase()}${log.direction.slice(1)}`)}</span>
+      <span className="direction">{t(`log.direction${log.direction.charAt(0).toUpperCase()}${log.direction.slice(1)}`)}</span>
       <div>
         <strong>{log.title}</strong>
         <p>{log.detail}</p>
@@ -972,12 +1105,14 @@ function LogItem({ log }: { log: TransferLog }) {
 function Dialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   const { t } = useTranslation();
   return (
-    <div className="dialog-backdrop" role="presentation">
+    <div className="dialog-backdrop" role="presentation" onClick={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
       <section className="dialog" role="dialog" aria-modal="true" aria-label={title}>
         <header>
           <h2>{title}</h2>
           <button type="button" onClick={onClose} aria-label={t('dialog.close')}>
-            <X size={18} />
+            <X size={16} />
           </button>
         </header>
         {children}
@@ -986,30 +1121,20 @@ function Dialog({ title, children, onClose }: { title: string; children: React.R
   );
 }
 
-function EmptyPeers() {
-  const { t } = useTranslation();
-  return (
-    <div className="empty-peers">
-      <Monitor aria-hidden="true" size={28} />
-      <p>{t('peers.scanHint')}</p>
-    </div>
-  );
-}
-
-function deviceIcon(deviceType: DeviceType) {
+function deviceIcon(deviceType: DeviceType, size = 22) {
   if (deviceType === 'mobile') {
-    return <Smartphone aria-hidden="true" size={22} />;
+    return <Smartphone aria-hidden="true" size={size} />;
   }
 
   if (deviceType === 'tablet') {
-    return <Tablet aria-hidden="true" size={22} />;
+    return <Tablet aria-hidden="true" size={size} />;
   }
 
   if (deviceType === 'desktop') {
-    return <Laptop aria-hidden="true" size={22} />;
+    return <Laptop aria-hidden="true" size={size} />;
   }
 
-  return <Monitor aria-hidden="true" size={22} />;
+  return <Monitor aria-hidden="true" size={size} />;
 }
 
 function ensureRoomInUrl() {

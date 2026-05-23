@@ -45,7 +45,9 @@ const en = {
     openingPeerLink: 'Opening peer link',
     scanHint: 'Scan the code or open the link on another device.',
     sendText: 'Send text to {{name}}',
-    sendFile: 'Send file to {{name}}'
+    sendFile: 'Send file to {{name}}',
+    actionText: 'Text',
+    actionFile: 'File'
   },
   inbox: {
     incoming: 'Incoming',
@@ -144,7 +146,9 @@ const zh: typeof en = {
     openingPeerLink: '正在建立点对点连接',
     scanHint: '在另一台设备上扫描二维码或打开链接。',
     sendText: '发送文本给 {{name}}',
-    sendFile: '发送文件给 {{name}}'
+    sendFile: '发送文件给 {{name}}',
+    actionText: '文本',
+    actionFile: '文件'
   },
   inbox: {
     incoming: '收件箱',
