@@ -103,6 +103,38 @@ const en = {
   browser: {
     browser: 'Browser',
     on: 'on'
+  },
+  diagnostics: {
+    eyebrow: 'Diagnostics',
+    title: 'Connection health',
+    signal: 'Signal',
+    p2p: 'P2P link',
+    ice: 'ICE/TURN',
+    reconnect: 'Refresh link',
+    noRecentIssue: 'No recent connection issue.',
+    p2pWaiting: 'Waiting for another device',
+    p2pSummary: '{{ready}} ready / {{total}} devices',
+    peerDetails: 'Peer connection details',
+    peerState: 'WebRTC {{connection}} · ICE {{ice}} · Channel {{channel}}',
+    privacy: 'Files and text move directly between browsers. Cloudflare only handles signaling and temporary TURN credentials.',
+    turnFallbackTitle: 'TURN is not active',
+    turnFallbackIssue: 'Using STUN fallback. Remote networks may need Cloudflare TURN.',
+    signalErrorIssue: 'Signal connection failed. Check the network or reconnect.',
+    channelErrorIssue: 'Data channel to {{name}} reported an error.',
+    peerFailedIssue: 'Peer connection to {{name}} failed. TURN may be required.',
+    iceFailedTitle: 'ICE failed',
+    iceFailedIssue: 'ICE negotiation with {{name}} failed. Try Cloudflare TURN.',
+    iceDisconnectedIssue: 'ICE connection with {{name}} was interrupted.',
+    signalState: {
+      connecting: 'connecting',
+      connected: 'connected',
+      disconnected: 'disconnected'
+    },
+    iceSource: {
+      loading: 'checking',
+      fallback: 'STUN fallback',
+      'cloudflare-turn': 'Cloudflare TURN'
+    }
   }
 };
 
@@ -202,6 +234,38 @@ const zh: typeof en = {
   browser: {
     browser: '浏览器',
     on: '·'
+  },
+  diagnostics: {
+    eyebrow: '连接诊断',
+    title: '连接健康',
+    signal: '信令',
+    p2p: '点对点链路',
+    ice: 'ICE/TURN',
+    reconnect: '刷新连接',
+    noRecentIssue: '暂无近期连接问题。',
+    p2pWaiting: '等待另一台设备',
+    p2pSummary: '{{ready}} 个就绪 / {{total}} 台设备',
+    peerDetails: '对端连接详情',
+    peerState: 'WebRTC {{connection}} · ICE {{ice}} · 通道 {{channel}}',
+    privacy: '文件和文本直接在浏览器之间传输。Cloudflare 只处理信令和临时 TURN 凭证。',
+    turnFallbackTitle: 'TURN 未启用',
+    turnFallbackIssue: '当前使用 STUN 回退。远距离或复杂网络可能需要 Cloudflare TURN。',
+    signalErrorIssue: '信令连接失败，请检查网络或重新连接。',
+    channelErrorIssue: '与 {{name}} 的数据通道报告错误。',
+    peerFailedIssue: '与 {{name}} 的点对点连接失败，可能需要 TURN。',
+    iceFailedTitle: 'ICE 失败',
+    iceFailedIssue: '与 {{name}} 的 ICE 协商失败，请尝试配置 Cloudflare TURN。',
+    iceDisconnectedIssue: '与 {{name}} 的 ICE 连接已中断。',
+    signalState: {
+      connecting: '连接中',
+      connected: '已连接',
+      disconnected: '已断开'
+    },
+    iceSource: {
+      loading: '检查中',
+      fallback: 'STUN 回退',
+      'cloudflare-turn': 'Cloudflare TURN'
+    }
   }
 };
 

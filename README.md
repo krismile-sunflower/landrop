@@ -7,6 +7,7 @@ LanDrop 是一个基于浏览器的点对点文件和文本传输工具。当前
 - **点对点传输**：文件和文本通过 WebRTC DataChannel 直连传输
 - **云端信令**：Cloudflare Workers + Durable Objects 维护房间和在线设备列表
 - **静态前端**：Next.js 静态导出后由 Workers Static Assets 托管
+- **连接诊断**：显示信令、P2P、ICE/TURN 来源和最近连接问题
 - **跨平台**：手机、平板、电脑只要支持现代浏览器即可使用
 - **同源部署**：前端、`/ws`、`/api/health` 均由同一个 Worker 域名提供
 
@@ -46,6 +47,14 @@ npm run dev:client
 ```
 
 ## 构建与部署
+
+建议在构建时配置正式站点地址，用于 Open Graph、robots 和 sitemap：
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://your-domain.example npm run build
+```
+
+普通构建与部署：
 
 ```bash
 npm run build
@@ -107,6 +116,22 @@ stun:stun.l.google.com:19302
 | `npm run deploy` | 构建并部署到 Cloudflare Workers |
 | `npm run typecheck` | 检查前端和 Worker 类型 |
 | `npm run lint` | 运行前端 ESLint 和 Worker 类型检查 |
+
+## 连接诊断
+
+页面右侧的连接诊断面板会显示：
+
+- **信令**：浏览器与 Worker 的 WebSocket 状态
+- **点对点链路**：每台对端设备的 WebRTC、ICE 和 DataChannel 状态
+- **ICE/TURN**：当前使用公共 STUN 回退还是 Cloudflare TURN
+- **最近问题**：连接失败、信令失败、ICE 失败、DataChannel 错误等提示
+
+远距离传输失败时，优先看诊断面板：
+
+1. 信令断开：检查 Worker 域名、网络或重新连接
+2. 信令正常但 P2P 失败：大概率是 NAT/防火墙，需要配置 Cloudflare Realtime TURN
+3. ICE 来源为 `STUN 回退`：说明 TURN 还没启用或凭证生成失败
+4. ICE 来源为 `Cloudflare TURN` 但仍失败：检查 Cloudflare TURN Key、API Token 和浏览器网络限制
 
 ## 传输流程
 

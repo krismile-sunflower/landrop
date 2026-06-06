@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { copyText } from '@/lib/clipboard';
+import DiagnosticsPanel from '@/components/DiagnosticsPanel';
+import { createPeerDiagnostic, type IceDiagnosticSource, type PeerDiagnostic, type PeerDiagnosticPatch, type SignalDiagnosticState } from '@/lib/diagnostics';
 import { defaultDeviceName, detectDeviceType } from '@/lib/device';
 import { createClientId } from '@/lib/id';
 import { fallbackIceServers, loadIceServers } from '@/lib/ice';
@@ -30,7 +32,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { DeviceType, Peer, ReceivedItem, RtcSignal, ServerMessage, TransferLog } from '@/lib/types';
 import { formatBytes } from '@/lib/format';
 
-type ConnectionState = 'connecting' | 'connected' | 'disconnected';
+type ConnectionState = SignalDiagnosticState;
 type ActiveDialog = { kind: 'text' | 'file'; peer: Peer } | null;
 type PeerEntry = { peer: Peer; pc: RTCPeerConnection; channel?: RTCDataChannel };
 type DataMessage =
@@ -87,6 +89,9 @@ export default function AppShell() {
   const [isUploading, setIsUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
+  const [iceSource, setIceSource] = useState<IceDiagnosticSource>('loading');
+  const [lastDiagnosticIssue, setLastDiagnosticIssue] = useState('');
+  const [peerDiagnostics, setPeerDiagnostics] = useState<Record<string, PeerDiagnostic>>({});
   const socketRef = useRef<WebSocket | null>(null);
   const connectionsRef = useRef(new Map<string, PeerEntry>());
   const incomingTransfersRef = useRef(new Map<string, IncomingTransfer>());
@@ -95,11 +100,16 @@ export default function AppShell() {
   const fileAckRef = useRef(new Map<string, FileAckState>());
   const objectUrlsRef = useRef<string[]>([]);
   const iceServersRef = useRef<RTCIceServer[]>(fallbackIceServers);
+  const iceSourceRef = useRef<IceDiagnosticSource>('loading');
   const selfIdRef = useRef('');
 
   const readyPeerSet = useMemo(() => new Set(readyPeerIds), [readyPeerIds]);
   const visiblePeers = useMemo(() => peers.filter((peer) => peer.peerId !== selfId), [peers, selfId]);
   const selfPeer = useMemo(() => peers.find((peer) => peer.peerId === selfId), [peers, selfId]);
+  const visiblePeerDiagnostics = useMemo(
+    () => visiblePeers.map((peer) => peerDiagnostics[peer.peerId] ?? createPeerDiagnostic(peer)),
+    [peerDiagnostics, visiblePeers]
+  );
 
   const pushLog = useCallback((log: Omit<TransferLog, 'id' | 'createdAt'>) => {
     setLogs((current) => [
@@ -131,7 +141,38 @@ export default function AppShell() {
   }, []);
 
   const refreshIceServers = useCallback(async () => {
-    iceServersRef.current = await loadIceServers();
+    setIceSource('loading');
+    const result = await loadIceServers();
+    const previousSource = iceSourceRef.current;
+    iceServersRef.current = result.iceServers;
+    iceSourceRef.current = result.source;
+    setIceSource(result.source);
+
+    if (result.source === 'fallback') {
+      setLastDiagnosticIssue(t('diagnostics.turnFallbackIssue'));
+      if (previousSource !== result.source) {
+        pushLog({
+          direction: 'system',
+          title: t('diagnostics.turnFallbackTitle'),
+          detail: t('diagnostics.turnFallbackIssue'),
+          status: 'pending'
+        });
+      }
+    } else {
+      setLastDiagnosticIssue('');
+    }
+  }, [pushLog, t]);
+
+  const updatePeerDiagnostic = useCallback((peer: Peer, patch: PeerDiagnosticPatch) => {
+    setPeerDiagnostics((current) => ({
+      ...current,
+      [peer.peerId]: {
+        ...(current[peer.peerId] ?? createPeerDiagnostic(peer)),
+        deviceName: peer.deviceName,
+        ...patch,
+        updatedAt: Date.now()
+      }
+    }));
   }, []);
 
   const sendFileAck = useCallback((peerId: string, transferId: string, transfer: IncomingTransfer, done: boolean) => {
@@ -357,22 +398,38 @@ export default function AppShell() {
 
   const wireChannel = useCallback((peer: Peer, channel: RTCDataChannel) => {
     channel.binaryType = 'arraybuffer';
-    channel.addEventListener('open', () => updateReadyPeer(peer.peerId, true));
-    channel.addEventListener('close', () => updateReadyPeer(peer.peerId, false));
-    channel.addEventListener('error', () => updateReadyPeer(peer.peerId, false));
+    updatePeerDiagnostic(peer, { channelState: channel.readyState });
+    channel.addEventListener('open', () => {
+      updatePeerDiagnostic(peer, { channelState: 'open' });
+      updateReadyPeer(peer.peerId, true);
+    });
+    channel.addEventListener('close', () => {
+      updatePeerDiagnostic(peer, { channelState: 'closed' });
+      updateReadyPeer(peer.peerId, false);
+    });
+    channel.addEventListener('error', () => {
+      updatePeerDiagnostic(peer, { channelState: channel.readyState });
+      setLastDiagnosticIssue(t('diagnostics.channelErrorIssue', { name: peer.deviceName }));
+      updateReadyPeer(peer.peerId, false);
+    });
     channel.addEventListener('message', (event) => receiveDataMessage(peer, event.data));
-  }, [receiveDataMessage, updateReadyPeer]);
+  }, [receiveDataMessage, t, updatePeerDiagnostic, updateReadyPeer]);
 
   const ensurePeerConnection = useCallback((peer: Peer) => {
     const existing = connectionsRef.current.get(peer.peerId);
     if (existing) {
       existing.peer = peer;
+      updatePeerDiagnostic(peer, {});
       return existing;
     }
 
     const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
     const entry: PeerEntry = { peer, pc };
     connectionsRef.current.set(peer.peerId, entry);
+    updatePeerDiagnostic(peer, {
+      connectionState: pc.connectionState,
+      iceConnectionState: pc.iceConnectionState
+    });
 
     pc.addEventListener('icecandidate', (event) => {
       if (event.candidate) {
@@ -381,8 +438,36 @@ export default function AppShell() {
     });
 
     pc.addEventListener('connectionstatechange', () => {
+      updatePeerDiagnostic(peer, { connectionState: pc.connectionState });
       if (['closed', 'disconnected', 'failed'].includes(pc.connectionState)) {
         updateReadyPeer(peer.peerId, false);
+      }
+      if (pc.connectionState === 'failed') {
+        const detail = t('diagnostics.peerFailedIssue', { name: peer.deviceName });
+        setLastDiagnosticIssue(detail);
+        pushLog({
+          direction: 'system',
+          title: t('errors.connectionFailed'),
+          detail,
+          status: 'error'
+        });
+      }
+    });
+
+    pc.addEventListener('iceconnectionstatechange', () => {
+      updatePeerDiagnostic(peer, { iceConnectionState: pc.iceConnectionState });
+      if (pc.iceConnectionState === 'failed') {
+        const detail = t('diagnostics.iceFailedIssue', { name: peer.deviceName });
+        setLastDiagnosticIssue(detail);
+        pushLog({
+          direction: 'system',
+          title: t('diagnostics.iceFailedTitle'),
+          detail,
+          status: 'error'
+        });
+      }
+      if (pc.iceConnectionState === 'disconnected') {
+        setLastDiagnosticIssue(t('diagnostics.iceDisconnectedIssue', { name: peer.deviceName }));
       }
     });
 
@@ -392,7 +477,7 @@ export default function AppShell() {
     });
 
     return entry;
-  }, [sendSignal, updateReadyPeer, wireChannel]);
+  }, [pushLog, sendSignal, t, updatePeerDiagnostic, updateReadyPeer, wireChannel]);
 
   const createOffer = useCallback(async (peer: Peer) => {
     const entry = ensurePeerConnection(peer);
@@ -439,6 +524,7 @@ export default function AppShell() {
       entry.pc.close();
     }
     connectionsRef.current.clear();
+    setPeerDiagnostics({});
     setReadyPeerIds([]);
     setConnectionState('connecting');
 
@@ -487,6 +573,19 @@ export default function AppShell() {
             updateReadyPeer(peerId, false);
           }
         }
+        setPeerDiagnostics((current) => {
+          const next: Record<string, PeerDiagnostic> = {};
+          for (const peer of message.peers) {
+            if (peer.peerId !== message.selfId) {
+              next[peer.peerId] = {
+                ...(current[peer.peerId] ?? createPeerDiagnostic(peer)),
+                deviceName: peer.deviceName,
+                updatedAt: Date.now()
+              };
+            }
+          }
+          return next;
+        });
 
         for (const peer of message.peers) {
           if (peer.peerId === message.selfId) {
@@ -536,9 +635,14 @@ export default function AppShell() {
     });
 
     socket.addEventListener('error', () => {
+      setLastDiagnosticIssue(t('diagnostics.signalErrorIssue'));
       setConnectionState('disconnected');
     });
   }, [createOffer, ensurePeerConnection, handleSignal, pushLog, t, updateReadyPeer]);
+
+  const reconnect = useCallback(() => {
+    void refreshIceServers().finally(() => connect(deviceName));
+  }, [connect, deviceName, refreshIceServers]);
 
   useEffect(() => {
     const connections = connectionsRef.current;
@@ -734,9 +838,7 @@ export default function AppShell() {
           <button
             className="icon-button"
             type="button"
-            onClick={() => {
-              void refreshIceServers().finally(() => connect(deviceName));
-            }}
+            onClick={reconnect}
             aria-label={t('device.reconnect')}
           >
             <RefreshCcw size={16} />
@@ -827,6 +929,14 @@ export default function AppShell() {
               )}
             </div>
           </section>
+
+          <DiagnosticsPanel
+            signalState={connectionState}
+            iceSource={iceSource}
+            peers={visiblePeerDiagnostics}
+            lastIssue={lastDiagnosticIssue}
+            onReconnect={reconnect}
+          />
 
           <section className="card">
             <div className="card-head">
