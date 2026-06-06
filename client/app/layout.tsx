@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'LanDrop',
-  description: 'Local network file and text transfer'
+  description: 'Local network file and text transfer.'
 };
 
 export const viewport: Viewport = {

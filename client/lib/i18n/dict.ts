@@ -74,7 +74,7 @@ const en = {
     textPlaceholder: 'Paste or type text',
     sendTextBtn: 'Send text',
     chooseFile: 'Choose a file',
-    fileHint: 'Files stream peer-to-peer and are not stored on the server.',
+    fileHint: 'Files stream peer-to-peer and are not stored in the cloud.',
     sendFileBtn: 'Send file',
     sendingProgress: '{{progress}}%'
   },
@@ -90,9 +90,7 @@ const en = {
     receiverNotConfirm: 'Receiver did not confirm the file transfer',
     peerLinkBusy: 'Peer link is busy',
     sendFailed: 'Send failed',
-    unknownError: 'Unknown error',
-    uploadFailed: 'Upload failed',
-    networkError: 'Network error'
+    unknownError: 'Unknown error'
   },
   transfer: {
     receiving: 'Receiving {{name}}',
@@ -175,7 +173,7 @@ const zh: typeof en = {
     textPlaceholder: '粘贴或输入文本',
     sendTextBtn: '发送文本',
     chooseFile: '选择文件',
-    fileHint: '文件点对点传输，不会存储在服务器上。',
+    fileHint: '文件点对点传输，不会存储在云端。',
     sendFileBtn: '发送文件',
     sendingProgress: '{{progress}}%'
   },
@@ -191,9 +189,7 @@ const zh: typeof en = {
     receiverNotConfirm: '接收方未确认文件传输',
     peerLinkBusy: '点对点连接繁忙',
     sendFailed: '发送失败',
-    unknownError: '未知错误',
-    uploadFailed: '上传失败',
-    networkError: '网络错误'
+    unknownError: '未知错误'
   },
   transfer: {
     receiving: '正在接收 {{name}}',

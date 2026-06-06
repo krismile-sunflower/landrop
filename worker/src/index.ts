@@ -24,6 +24,7 @@ type ClientMessage =
 const app = new Hono<{ Bindings: Env }>();
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+app.get('/favicon.ico', (c) => c.redirect('/icon.svg', 308));
 
 app.get('/ws', (c) => {
   const upgrade = c.req.header('Upgrade');
@@ -51,8 +52,8 @@ export class RoomDurableObject {
     }
 
     const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair);
-    this.acceptSocket(server);
+    const [client, workerSocket] = Object.values(pair);
+    this.acceptSocket(workerSocket);
 
     return new Response(null, {
       status: 101,

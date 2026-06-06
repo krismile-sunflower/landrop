@@ -1,10 +1,11 @@
 node_modules/
+.DS_Store
 .next/
 out/
 dist/
-server/uploads/
-server/public/
+worker/.wrangler/
 .env
 .env.*
 *.log
 package-lock.json
+*.tsbuildinfo

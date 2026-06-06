@@ -27,7 +27,7 @@ import { createClientId } from '@/lib/id';
 import { useTranslation } from '@/lib/i18n';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { DeviceType, Peer, ReceivedItem, RtcSignal, ServerMessage, TransferLog } from '@/lib/types';
-import { formatBytes } from '@/lib/upload';
+import { formatBytes } from '@/lib/format';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 type ActiveDialog = { kind: 'text' | 'file'; peer: Peer } | null;
@@ -439,8 +439,7 @@ export default function AppShell() {
     setConnectionState('connecting');
 
     const targetRoom = ensureRoomInUrl();
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/ws?room=${encodeURIComponent(targetRoom)}`);
+    const socket = new WebSocket(createRoomSocketUrl(targetRoom));
     socketRef.current = socket;
 
     socket.addEventListener('open', () => {
@@ -1081,6 +1080,13 @@ async function downloadFile(blob: Blob, url: string, fileName: string) {
 
 function isAppleMobileBrowser() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function createRoomSocketUrl(room: string) {
+  const url = new URL('/ws', window.location.href);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.searchParams.set('room', room);
+  return url.toString();
 }
 
 function copyArrayBufferView(view: ArrayBufferView) {

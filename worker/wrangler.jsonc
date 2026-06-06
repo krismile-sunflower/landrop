@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-05-15",
   "assets": {
+    "binding": "ASSETS",
     "directory": "../client/out",
     "not_found_handling": "single-page-application"
   },
