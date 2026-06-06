@@ -8,6 +8,9 @@
     "directory": "../client/out",
     "not_found_handling": "single-page-application"
   },
+  "vars": {
+    "TURN_CREDENTIAL_TTL": "21600"
+  },
   "durable_objects": {
     "bindings": [
       {

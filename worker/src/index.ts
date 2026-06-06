@@ -5,6 +5,15 @@ type DeviceType = 'desktop' | 'mobile' | 'tablet' | 'unknown';
 type Env = {
   ROOMS: DurableObjectNamespace;
   ASSETS: Fetcher;
+  TURN_KEY_ID?: string;
+  TURN_KEY_API_TOKEN?: string;
+  TURN_CREDENTIAL_TTL?: string;
+};
+
+type IceServer = {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
 };
 
 type Peer = {
@@ -24,6 +33,11 @@ type ClientMessage =
 const app = new Hono<{ Bindings: Env }>();
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+app.get('/api/ice-servers', async (c) => {
+  const response = c.json(await createIceServersResponse(c.env));
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+});
 app.get('/favicon.ico', (c) => c.redirect('/icon.svg', 308));
 
 app.get('/ws', (c) => {
@@ -180,3 +194,81 @@ function createPeerId() {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   return Array.from(bytes, (byte) => byte.toString(36).padStart(2, '0')).join('').slice(0, 10);
 }
+
+async function createIceServersResponse(env: Env) {
+  const fallback = { source: 'fallback', iceServers: fallbackIceServers };
+  if (!env.TURN_KEY_ID || !env.TURN_KEY_API_TOKEN) {
+    return fallback;
+  }
+
+  try {
+    const response = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(env.TURN_KEY_ID)}/credentials/generate-ice-servers`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ttl: getTurnCredentialTtl(env) })
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`TURN credential request failed: ${response.status}`);
+      return fallback;
+    }
+
+    const data = (await response.json()) as { iceServers?: unknown };
+    const iceServers = normalizeIceServers(data.iceServers);
+    return iceServers.length ? { source: 'cloudflare-turn', iceServers } : fallback;
+  } catch (error) {
+    console.warn('TURN credential request failed', error);
+    return fallback;
+  }
+}
+
+function getTurnCredentialTtl(env: Env) {
+  const ttl = Number(env.TURN_CREDENTIAL_TTL ?? 21600);
+  if (!Number.isFinite(ttl)) {
+    return 21600;
+  }
+
+  return Math.min(Math.max(Math.round(ttl), 60), 86400);
+}
+
+function normalizeIceServers(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map(normalizeIceServer).filter((server): server is IceServer => Boolean(server));
+}
+
+function normalizeIceServer(value: unknown): IceServer | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as { urls?: unknown; username?: unknown; credential?: unknown };
+  const urls = (Array.isArray(candidate.urls) ? candidate.urls : [candidate.urls])
+    .filter((url): url is string => typeof url === 'string')
+    .filter(isBrowserSupportedIceUrl);
+
+  if (urls.length === 0) {
+    return null;
+  }
+
+  return {
+    urls: urls.length === 1 ? urls[0] : urls,
+    ...(typeof candidate.username === 'string' ? { username: candidate.username } : {}),
+    ...(typeof candidate.credential === 'string' ? { credential: candidate.credential } : {})
+  };
+}
+
+function isBrowserSupportedIceUrl(url: string) {
+  const path = url.split('?')[0];
+  return path.split(':').at(-1) !== '53';
+}
+
+const fallbackIceServers: IceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];

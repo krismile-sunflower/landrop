@@ -63,8 +63,38 @@ Worker 配置在 `worker/wrangler.jsonc`：
 - `assets.directory` 指向 `../client/out`
 - `assets.binding` 暴露为 `ASSETS`，Worker 可用 `env.ASSETS.fetch(request)` 回退到静态资源
 - `/ws` 使用 Durable Objects 管理房间内 WebSocket 连接
+- `/api/ice-servers` 返回 WebRTC ICE 配置；配置 TURN Key 后会返回短期 TURN 凭证
 - `/api/health` 提供健康检查
 - 其他路径交给 Workers Static Assets
+
+## 远距离传输与 TURN
+
+跨城市、跨运营商、公司网络、校园网、移动网络等场景下，WebRTC 直连可能失败。项目支持 Cloudflare Realtime TURN，不需要自己购买服务器。
+
+配置步骤：
+
+1. 在 Cloudflare 创建 Realtime TURN Key，并生成对应 API Token
+2. 把 Key ID 和 API Token 配成 Worker secret：
+
+```bash
+cd worker
+npx wrangler secret put TURN_KEY_ID
+npx wrangler secret put TURN_KEY_API_TOKEN
+```
+
+本地预览时可以在 `worker/.dev.vars` 中放入：
+
+```text
+TURN_KEY_ID=你的 TURN Key ID
+TURN_KEY_API_TOKEN=你的 TURN Key API Token
+TURN_CREDENTIAL_TTL=21600
+```
+
+未配置 TURN 时，`/api/ice-servers` 会自动回退到公共 STUN：
+
+```text
+stun:stun.l.google.com:19302
+```
 
 ## 可用脚本
 

@@ -24,6 +24,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { copyText } from '@/lib/clipboard';
 import { defaultDeviceName, detectDeviceType } from '@/lib/device';
 import { createClientId } from '@/lib/id';
+import { fallbackIceServers, loadIceServers } from '@/lib/ice';
 import { useTranslation } from '@/lib/i18n';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { DeviceType, Peer, ReceivedItem, RtcSignal, ServerMessage, TransferLog } from '@/lib/types';
@@ -93,6 +94,7 @@ export default function AppShell() {
   const pendingChunkByPeerRef = useRef(new Map<string, PendingChunk>());
   const fileAckRef = useRef(new Map<string, FileAckState>());
   const objectUrlsRef = useRef<string[]>([]);
+  const iceServersRef = useRef<RTCIceServer[]>(fallbackIceServers);
   const selfIdRef = useRef('');
 
   const readyPeerSet = useMemo(() => new Set(readyPeerIds), [readyPeerIds]);
@@ -126,6 +128,10 @@ export default function AppShell() {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'signal', target, data }));
     }
+  }, []);
+
+  const refreshIceServers = useCallback(async () => {
+    iceServersRef.current = await loadIceServers();
   }, []);
 
   const sendFileAck = useCallback((peerId: string, transferId: string, transfer: IncomingTransfer, done: boolean) => {
@@ -364,9 +370,7 @@ export default function AppShell() {
       return existing;
     }
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    });
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
     const entry: PeerEntry = { peer, pc };
     connectionsRef.current.set(peer.peerId, entry);
 
@@ -545,7 +549,7 @@ export default function AppShell() {
       const url = window.location.href;
       setDeviceName(name);
       setShareUrl(url);
-      connect(name);
+      void refreshIceServers().finally(() => connect(name));
 
       void import('qrcode')
         .then((QRCode) => QRCode.toDataURL(url, { errorCorrectionLevel: 'M', margin: 1, width: 320 }))
@@ -563,7 +567,7 @@ export default function AppShell() {
         URL.revokeObjectURL(url);
       }
     };
-  }, [connect, t]);
+  }, [connect, refreshIceServers, t]);
 
   const renameDevice = useCallback((value: string) => {
     const nextName = value.slice(0, 48);
@@ -727,7 +731,14 @@ export default function AppShell() {
             <User aria-hidden="true" size={15} />
             <input value={deviceName} onChange={(event) => renameDevice(event.target.value)} aria-label={t('device.name')} />
           </label>
-          <button className="icon-button" type="button" onClick={() => connect(deviceName)} aria-label={t('device.reconnect')}>
+          <button
+            className="icon-button"
+            type="button"
+            onClick={() => {
+              void refreshIceServers().finally(() => connect(deviceName));
+            }}
+            aria-label={t('device.reconnect')}
+          >
             <RefreshCcw size={16} />
           </button>
           <LanguageSwitcher />
